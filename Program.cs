@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
 using TrilhaApiDesafio.Context;
+using TrilhaApiDesafio.Services;
+using Services.Tarefas;
 
 var builder = WebApplication.CreateBuilder();
 
@@ -15,6 +17,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
+builder.Services.AddScoped<ITarefas, Tarefas>();
 
 var app = builder.Build();
 
@@ -24,7 +27,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwaggerUI(options => 
     {
-        options.SwaggerEndpoint("/openapi/desafio.json", "desafio");
+        options.SwaggerEndpoint("/openapi/v1.json", "v1");
     });
 }
 

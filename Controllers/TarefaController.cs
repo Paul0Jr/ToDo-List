@@ -1,6 +1,10 @@
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Services.Tarefas;
 using TrilhaApiDesafio.Context;
-using TrilhaApiDesafio.Models;
+using TrilhaApiDesafio.DTO;
+using TrilhaApiDesafio.Services;
+
 
 namespace TrilhaApiDesafio.Controllers
 {
@@ -8,96 +12,86 @@ namespace TrilhaApiDesafio.Controllers
     [Route("[controller]")]
     public class TarefaController : ControllerBase
     {
-        private readonly OrganizadorContext _context;
-
-        public TarefaController(OrganizadorContext context)
+        private readonly ITarefas response;
+        public TarefaController(ITarefas service)
         {
-            _context = context;
+            response = service;
         }
 
-        [HttpGet("{id}")]
-        public IActionResult ObterPorId(int id)
+        [HttpGet("All")]
+        public async Task<ActionResult> ObterTodos()
         {
-            var context = _context.Tarefas.Find(id);
-            if (context == null) {return NotFound();}
-
-            return Ok(context);
+            var tarefas = await response.GetAllTarefa();
+            if (tarefas == null || tarefas.Count == 0)
+                return NotFound("A lista de tarefas está vazia");
+            return Ok(tarefas);
         }
 
-        [HttpGet("ObterTodos")]
-        public IActionResult ObterTodos()
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> ObterPorId([FromRoute] int id)
         {
-            var tasks = _context.Tarefas.ToList();
-            if (tasks == null || !tasks.Any()) { return NotFound();}
-            
-            return Ok(tasks);
+            var tarefa = await response.GetByIdTarefa(id);
+            if (tarefa == null) return NotFound($"A tarefa de {id} não existe");
+            return Ok(tarefa);
         }
 
-        [HttpGet("ObterPorTitulo")]
-        public IActionResult ObterPorTitulo(string titulo)
+        [HttpGet("Titulo")]
+        public async Task<IActionResult> ObterPorTitulo([FromRoute] string titulo)
         {
-            var titles = _context.Tarefas.Where(x => x.Titulo.Contains(titulo));
-            
-            return Ok(titles);
+            var tarefa = await response.GetByTitulo(titulo);
+            if (tarefa == null) return NotFound($"A tarefa de título '{titulo}' não existe");
+            return Ok(tarefa);
         }
 
-        [HttpGet("ObterPorData")]
-        public IActionResult ObterPorData(DateTime data)
+        [HttpGet("Data")]
+        public async Task<IActionResult> ObterPorData([FromRoute] DateTime data)
         {
-            var task = _context.Tarefas.Where(x => x.Data.Date == data.Date);
+            var tarefas = await response.GetByDateTarefa(data);
+            if (tarefas == null || tarefas.Count == 0) return NotFound("Não existem tarefas para a data selecionada");
+            return Ok(tarefas);
+
+        }
+
+        [HttpGet("Status")]
+        public async Task<IActionResult> ObterPorStatus([FromRoute] EnumStatusTarefa status)
+        {
+            var tarefas = await response.GetByStatusTarefa(status);
+            if (tarefas == null || tarefas.Count == 0) return NotFound($"Não existem tarefas com status '{status}'.");
+            return Ok(tarefas);
+        }
+
+        [HttpPost("Add")]
+        public async Task<IActionResult> Criar(Tarefa tarefa)
+        {
+            //if (tarefa.Data == DateTime.MinValue) { return BadRequest(new { Erro = "A data da tarefa não pode ser vazia" }); }
+            var task = await response.AddTarefa(tarefa);
+            if (task == null) return BadRequest("Erro ao adicionar tarefa.");
             return Ok(task);
         }
 
-        [HttpGet("ObterPorStatus")]
-        public IActionResult ObterPorStatus(EnumStatusTarefa status)
+        [HttpPut("Update/{id}")]
+        public async Task<IActionResult> Atualizar([FromRoute] int id, Tarefa tarefa)
         {
-            var task = _context.Tarefas.Where(x => x.Status == status);
+            var task = await response.GetByIdTarefa(id);
+            if (task == null) return NotFound();
+            await response.UpdateTarefa(id, tarefa);
+
             return Ok(task);
         }
 
-        [HttpPost("CriarTarefa")]
-        public IActionResult Criar(Tarefa tarefa)
+        [HttpDelete("Remove/{id}")]
+        public async Task<IActionResult> Deletar([FromRoute] int id)
         {
-            if (tarefa.Data == DateTime.MinValue) { return BadRequest(new { Erro = "A data da tarefa não pode ser vazia" }); }
-
-            _context.Add(tarefa);
-            _context.SaveChanges();
-            return CreatedAtAction(nameof(ObterPorId), new { id = tarefa.Id }, tarefa);
-        }
-
-        [HttpPut("{id}")]
-        public IActionResult Atualizar(int id, Tarefa tarefa)
-        {
-            var tarefaBanco = _context.Tarefas.Find(id);
-
-            if (tarefaBanco == null)
-                return NotFound();
-
-            if (tarefa.Data == DateTime.MinValue)
-                return BadRequest(new { Erro = "A data da tarefa não pode ser vazia" });
-
-            tarefaBanco.Titulo = tarefa.Titulo;
-            tarefaBanco.Descricao = tarefa.Descricao;
-            tarefaBanco.Data = tarefa.Data;
-            tarefaBanco.Status = tarefa.Status;
-
-            _context.Tarefas.Update(tarefaBanco);
-            _context.SaveChanges();
-            return Ok(tarefaBanco);
-        }
-
-        [HttpDelete("{id}")]
-        public IActionResult Deletar(int id)
-        {
-            var tarefaBanco = _context.Tarefas.Find(id);
-
-            if (tarefaBanco == null)
-                return NotFound();
-
-            _context.Tarefas.Remove(tarefaBanco);
-            _context.SaveChanges();
-            
-            return NoContent();
+            try
+            {
+                var task = await response.RemoveTarefa(id);
+                if (task == null) return NotFound($"Não foi possível encontrar tarefa com id {id}.");
+                return Ok("Tarefa excluída com sucesso");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Erro ao deletar tarefa: {ex.Message}");
+            }
         }
     }
 }
